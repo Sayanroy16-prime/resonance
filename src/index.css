@@ -180,3 +180,53 @@ body {
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
 }
+
+/* ── Interactive Zoom Features & Hover Magnification ── */
+.zoom-smooth-transition {
+  transition: transform 0.35s cubic-bezier(0.16, 1, 0.3, 1), font-size 0.25s ease;
+  transform-origin: center top;
+}
+
+/* Hover Zoom Lens Mode: Elevate & Magnify interactive options */
+.hover-zoom-enabled button:hover:not(:disabled),
+.hover-zoom-enabled .hover-zoom-item:hover,
+.hover-zoom-enabled .card-hover-lift:hover {
+  transform: translateY(-3px) scale(1.06) !important;
+  box-shadow: 0 10px 30px rgba(0, 230, 118, 0.2), 0 0 15px rgba(0, 0, 0, 0.8);
+  transition: transform 0.2s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.2s ease;
+  z-index: 15;
+}
+
+/* Vinyl Deck Zoom Modes */
+.vinyl-deck-zoom-1 {
+  transform: scale(1);
+  transition: transform 0.45s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.vinyl-deck-zoom-2 {
+  transform: scale(1.28);
+  transition: transform 0.45s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.vinyl-deck-zoom-3 {
+  transform: scale(1.55);
+  transition: transform 0.45s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+/* Floating Zoom HUD Glass Style */
+.glass-zoom-hud {
+  background: rgba(16, 18, 22, 0.88);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.7), 0 0 20px rgba(0, 230, 118, 0.15);
+}
+
+@keyframes pulseGlow {
+  0%, 100% { box-shadow: 0 0 15px rgba(0, 230, 118, 0.2); }
+  50% { box-shadow: 0 0 28px rgba(0, 230, 118, 0.5); }
+}
+
+.zoom-pulse-active {
+  animation: pulseGlow 2.5s infinite ease-in-out;
+}

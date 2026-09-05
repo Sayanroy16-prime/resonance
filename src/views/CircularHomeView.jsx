@@ -1,7 +1,8 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import {
   Search, Play, Pause, Heart, Download, CheckCircle, Plus,
-  Disc3, X, SkipForward, SkipBack, Shuffle, Repeat, Repeat1, Volume2, VolumeX
+  Disc3, X, SkipForward, SkipBack, Shuffle, Repeat, Repeat1, Volume2, VolumeX,
+  ZoomIn, ZoomOut, Maximize2
 } from 'lucide-react';
 import { MOCK_TRACKS } from '../data/mockTracks';
 
@@ -46,6 +47,11 @@ export const CircularHomeView = ({
   const [searchQuery, setSearchQuery] = useState('');
   const [searchOpen, setSearchOpen]   = useState(false);
   const [vinylAngle, setVinylAngle]   = useState(0);
+  const [deckZoom, setDeckZoom]       = useState(1.0);
+
+  const toggleDeckZoom = useCallback(() => {
+    setDeckZoom(z => (z === 1.0 ? 1.25 : z === 1.25 ? 1.5 : 1.0));
+  }, []);
 
   const inputRef    = useRef(null);
   const rafRef      = useRef(null);
@@ -168,8 +174,19 @@ export const CircularHomeView = ({
           </div>
         </div>
 
-        {/* ── THE BIG CIRCLE ── */}
-        <div className="relative flex-shrink-0" style={{ width: totalSize, height: totalSize }}>
+        {/* ── THE BIG CIRCLE & VINYL TURNTABLE ── */}
+        <div 
+          className="relative flex-shrink-0 cursor-default" 
+          style={{ 
+            width: totalSize, 
+            height: totalSize,
+            transform: `scale(${deckZoom})`,
+            transformOrigin: 'center center',
+            transition: 'transform 0.4s cubic-bezier(0.16, 1, 0.3, 1)'
+          }}
+          onDoubleClick={toggleDeckZoom}
+          title="Double-click turntable to toggle Zoom"
+        >
 
           {/* SVG: rings, ticks, arc, connectors */}
           <svg className="absolute inset-0" width={totalSize} height={totalSize} style={{ overflow: 'visible' }}>
@@ -428,6 +445,37 @@ export const CircularHomeView = ({
               </div>
             </div>
           )}
+          {/* Deck Zoom Quick Controls */}
+          <div 
+            className="absolute -bottom-7 left-1/2 -translate-x-1/2 z-40 flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-[#12141a]/90 border border-white/15 backdrop-blur-xl shadow-2xl"
+            onClick={e => e.stopPropagation()}
+          >
+            <button
+              onClick={() => setDeckZoom(z => Math.max(0.85, Math.round((z - 0.15) * 100) / 100))}
+              disabled={deckZoom <= 0.85}
+              className="p-1 rounded-full text-gray-400 hover:text-white disabled:opacity-30 transition"
+              title="Zoom Out Turntable"
+            >
+              <ZoomOut className="w-3.5 h-3.5" />
+            </button>
+            <button
+              onClick={toggleDeckZoom}
+              className="flex items-center gap-1 text-[11px] font-bold text-[#00E676] px-1.5 hover:brightness-125 transition"
+              title="Toggle Zoom: 100% → 125% → 150%"
+            >
+              <ZoomIn className="w-3.5 h-3.5" />
+              <span>{Math.round(deckZoom * 100)}%</span>
+              <span className="text-[9px] text-gray-400 font-normal hidden sm:inline">Deck Zoom</span>
+            </button>
+            <button
+              onClick={() => setDeckZoom(z => Math.min(1.6, Math.round((z + 0.15) * 100) / 100))}
+              disabled={deckZoom >= 1.6}
+              className="p-1 rounded-full text-gray-400 hover:text-white disabled:opacity-30 transition"
+              title="Zoom In Turntable"
+            >
+              <ZoomIn className="w-3.5 h-3.5" />
+            </button>
+          </div>
         </div>
 
         {/* ── RIGHT DETAILS PANEL ── */}

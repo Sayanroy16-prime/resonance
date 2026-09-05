@@ -9,7 +9,11 @@ export const Navbar = ({
   onBack, 
   onForward,
   user,
-  onLogout
+  onLogout,
+  zoomLevel = 1.0,
+  onToggleZoom,
+  hoverZoom = true,
+  onToggleHoverZoom
 }) => {
   const [showProfileMenu, setShowProfileMenu] = useState(false);
 
@@ -50,8 +54,25 @@ export const Navbar = ({
         )}
       </div>
 
-      {/* Right Controls & Profile */}
+      {/* Right Controls, Zoom Toggle & Profile */}
       <div className="flex items-center gap-3 relative">
+        {/* Quick Toggle to Zoom Pill */}
+        {onToggleZoom && (
+          <button
+            onClick={onToggleZoom}
+            className={`flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold transition-all duration-200 border ${
+              zoomLevel > 1
+                ? 'bg-[#00E676] text-black border-[#00E676] shadow-lg shadow-[#00E676]/30'
+                : 'bg-white/5 hover:bg-white/10 text-gray-300 hover:text-white border-white/10'
+            }`}
+            title="Toggle to Zoom (Shortcut: Z)"
+          >
+            <span className="text-xs">🔍</span>
+            <span className="font-mono">{Math.round(zoomLevel * 100)}%</span>
+            <span className="hidden sm:inline text-[10px] uppercase font-bold opacity-80">Zoom</span>
+          </button>
+        )}
+
         {isOfflineMode ? (
           <div className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-amber-500/10 border border-amber-500/30 text-amber-400 text-xs font-semibold">
             <WifiOff className="w-3.5 h-3.5" />

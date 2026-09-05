@@ -2,7 +2,8 @@ import React, { useState, useEffect } from 'react';
 import {
   Play, Pause, Heart, Download, CheckCircle,
   Plus, Guitar, Sliders, Volume2, Save, Check,
-  X, Copy, FileText, Music, Sparkles
+  X, Copy, FileText, Music, Sparkles,
+  ZoomIn, ZoomOut, Maximize2, Minimize2
 } from 'lucide-react';
 import { GUITAR_TRACKS, GUITAR_CATEGORIES } from '../data/mockTracks';
 import { api } from '../services/api';
@@ -245,6 +246,12 @@ export const GuitarView = ({
   const [currentTabDetails, setCurrentTabDetails] = useState(null);
   const [isTabModalOpen, setIsTabModalOpen] = useState(false);
   const [copiedTab, setCopiedTab] = useState(false);
+  const [tabZoomLevel, setTabZoomLevel] = useState(1.0); // 1.0, 1.25, 1.5, 1.8
+  const [isFullScreenTab, setIsFullScreenTab] = useState(false);
+
+  const toggleTabZoom = () => {
+    setTabZoomLevel(z => (z === 1.0 ? 1.25 : z === 1.25 ? 1.5 : z === 1.5 ? 1.8 : 1.0));
+  };
 
   // Load live guitar catalog & tabs from backend
   useEffect(() => {
@@ -716,7 +723,7 @@ export const GuitarView = ({
       {isTabModalOpen && selectedTabTrack && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-fadeIn">
           <div
-            className="relative w-full max-w-2xl max-h-[85vh] rounded-3xl overflow-hidden flex flex-col border border-white/10 shadow-2xl"
+            className={`relative w-full ${isFullScreenTab ? 'max-w-5xl h-[92vh]' : 'max-w-2xl max-h-[85vh]'} rounded-3xl overflow-hidden flex flex-col border border-white/10 shadow-2xl transition-all duration-300`}
             style={{ background: '#0e1014' }}
             onClick={e => e.stopPropagation()}
           >
@@ -737,6 +744,46 @@ export const GuitarView = ({
               </div>
 
               <div className="flex items-center gap-2">
+                {/* Tab Zoom Controller */}
+                <div className="flex items-center gap-1 bg-white/5 border border-white/10 rounded-xl p-1">
+                  <button
+                    onClick={() => setTabZoomLevel(z => Math.max(0.85, Math.round((z - 0.15) * 100) / 100))}
+                    disabled={tabZoomLevel <= 0.85}
+                    className="p-1 rounded-lg hover:bg-white/10 text-gray-400 hover:text-white disabled:opacity-30 transition"
+                    title="Zoom Out Tab (-)"
+                  >
+                    <ZoomOut style={{ width: 14, height: 14 }} />
+                  </button>
+                  <button
+                    onClick={toggleTabZoom}
+                    className="px-2 py-0.5 rounded-lg text-xs font-mono font-bold text-orange-400 hover:bg-orange-500/10 transition"
+                    title="Toggle Zoom: 100% → 125% → 150% → 180%"
+                  >
+                    {Math.round(tabZoomLevel * 100)}%
+                  </button>
+                  <button
+                    onClick={() => setTabZoomLevel(z => Math.min(2.0, Math.round((z + 0.15) * 100) / 100))}
+                    disabled={tabZoomLevel >= 2.0}
+                    className="p-1 rounded-lg hover:bg-white/10 text-gray-400 hover:text-white disabled:opacity-30 transition"
+                    title="Zoom In Tab (+)"
+                  >
+                    <ZoomIn style={{ width: 14, height: 14 }} />
+                  </button>
+                </div>
+
+                {/* Stage Mode / Fullscreen Toggle */}
+                <button
+                  onClick={() => setIsFullScreenTab(!isFullScreenTab)}
+                  className="p-2 rounded-xl bg-white/5 hover:bg-white/10 text-gray-300 hover:text-white border border-white/10 transition"
+                  title={isFullScreenTab ? "Exit Stage View" : "Stage Mode (Large View)"}
+                >
+                  {isFullScreenTab ? (
+                    <Minimize2 style={{ width: 14, height: 14 }} />
+                  ) : (
+                    <Maximize2 style={{ width: 14, height: 14 }} />
+                  )}
+                </button>
+
                 <button
                   onClick={handleCopyTab}
                   className="px-3 py-1.5 rounded-xl text-xs font-bold bg-white/5 hover:bg-white/10 text-gray-300 hover:text-white border border-white/10 flex items-center gap-1.5 transition"
@@ -801,7 +848,7 @@ export const GuitarView = ({
               </button>
             </div>
 
-            {/* Chord Boxes */}
+            {/* Chord Boxes with dynamic scale */}
             {currentTabDetails?.chords && currentTabDetails.chords.length > 0 && (
               <div className="px-6 py-3 bg-white/[0.02] border-b border-white/5 flex items-center gap-2 overflow-x-auto">
                 <span className="text-xs font-bold text-gray-500 mr-1 flex items-center gap-1">
@@ -810,7 +857,11 @@ export const GuitarView = ({
                 {currentTabDetails.chords.map((chord) => (
                   <span
                     key={chord}
-                    className="px-3 py-1 rounded-xl text-xs font-extrabold tracking-wider bg-orange-500/15 text-orange-300 border border-orange-500/30"
+                    className="font-extrabold tracking-wider bg-orange-500/15 text-orange-300 border border-orange-500/30 rounded-xl transition-all"
+                    style={{
+                      padding: `${4 * tabZoomLevel}px ${10 * tabZoomLevel}px`,
+                      fontSize: `${11 * tabZoomLevel}px`
+                    }}
                   >
                     {chord}
                   </span>
@@ -818,9 +869,15 @@ export const GuitarView = ({
               </div>
             )}
 
-            {/* Modal Body: Monospace Tablature & Lyrics Sheet */}
+            {/* Modal Body: Monospace Tablature & Lyrics Sheet with Zoom Scaling */}
             <div className="flex-1 overflow-y-auto p-6 space-y-4">
-              <pre className="text-xs sm:text-sm font-mono leading-relaxed text-gray-300 bg-black/60 p-5 rounded-2xl border border-white/5 overflow-x-auto select-text whitespace-pre">
+              <pre 
+                className="font-mono leading-relaxed text-gray-300 bg-black/60 p-5 rounded-2xl border border-white/5 overflow-x-auto select-text whitespace-pre transition-all duration-200"
+                style={{
+                  fontSize: `${13 * tabZoomLevel}px`,
+                  lineHeight: tabZoomLevel > 1.3 ? 1.75 : 1.6
+                }}
+              >
                 {currentTabDetails?.tab_content || currentTabDetails?.tabContent || 'Loading tablature...'}
               </pre>
             </div>

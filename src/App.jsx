@@ -5,6 +5,7 @@ import { PlayerBar } from './components/PlayerBar';
 import { QueueDrawer } from './components/QueueDrawer';
 import { FullPlayerOverlay } from './components/FullPlayerOverlay';
 import { AuthScreen } from './components/AuthScreen';
+import { FloatingZoomHUD } from './components/FloatingZoomHUD';
 
 import { CircularHomeView } from './views/CircularHomeView';
 import { SearchView } from './views/SearchView';
@@ -72,6 +73,33 @@ export function App() {
   // Modals & Panels
   const [isQueueOpen, setIsQueueOpen] = useState(false);
   const [isFullPlayerOpen, setIsFullPlayerOpen] = useState(false);
+
+  // Global Zoom & Magnifier State
+  const [globalZoom, setGlobalZoom] = useState(1.0); // 1.0, 1.15, 1.3
+  const [hoverZoom, setHoverZoom] = useState(true);
+
+  const handleToggleZoom = () => {
+    setGlobalZoom(z => (z === 1.0 ? 1.15 : z === 1.15 ? 1.3 : 1.0));
+  };
+
+  const handleToggleHoverZoom = () => {
+    setHoverZoom(prev => !prev);
+  };
+
+  // Keyboard shortcut listener: 'Z' toggles zoom, 'Escape' resets zoom
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if (['INPUT', 'TEXTAREA'].includes(e.target.tagName)) return;
+      if (e.key === 'z' || e.key === 'Z') {
+        e.preventDefault();
+        handleToggleZoom();
+      } else if (e.key === 'Escape' && globalZoom > 1) {
+        setGlobalZoom(1.0);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [globalZoom]);
 
   // Sync DB records & Backend data on startup / user change
   useEffect(() => {
@@ -321,7 +349,7 @@ export function App() {
   }
 
   return (
-    <div className="flex h-screen w-screen overflow-hidden bg-[#1A0507] text-white">
+    <div className={`flex h-screen w-screen overflow-hidden bg-[#1A0507] text-white ${hoverZoom ? 'hover-zoom-enabled' : ''}`}>
       {/* Circular Sidebar */}
       <CircularSidebar
         currentView={currentView}
@@ -348,10 +376,20 @@ export function App() {
           onForward={handleForward}
           user={user}
           onLogout={handleLogout}
+          zoomLevel={globalZoom}
+          onToggleZoom={handleToggleZoom}
+          hoverZoom={hoverZoom}
+          onToggleHoverZoom={handleToggleHoverZoom}
         />
 
-        {/* Dynamic Route View Renderer */}
-        <main className={`flex-1 relative ${currentView === 'home' ? 'overflow-hidden' : 'overflow-y-auto'}`}>
+        {/* Dynamic Route View Renderer with Zoom Scale Transition */}
+        <main 
+          className={`flex-1 relative zoom-smooth-transition ${currentView === 'home' ? 'overflow-hidden' : 'overflow-y-auto'}`}
+          style={{
+            transform: globalZoom !== 1.0 ? `scale(${globalZoom})` : undefined,
+            transformOrigin: 'center top'
+          }}
+        >
           {currentView === 'home' && (
             <CircularHomeView
               currentTrack={currentTrack}
@@ -580,6 +618,15 @@ export function App() {
           audioEngine.setVolume(val);
           setIsMuted(val === 0);
         }}
+      />
+
+      {/* Floating Zoom & Accessibility HUD */}
+      <FloatingZoomHUD
+        zoomLevel={globalZoom}
+        onSetZoom={setGlobalZoom}
+        onToggleZoom={handleToggleZoom}
+        hoverZoom={hoverZoom}
+        onToggleHoverZoom={handleToggleHoverZoom}
       />
     </div>
   );
