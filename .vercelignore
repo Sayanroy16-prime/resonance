@@ -1,0 +1,12 @@
+node_modules
+dist
+flutter
+flutter/
+flutter_app
+.venv
+.venv/
+scripts
+server/data
+.git
+.DS_Store
+*.log
