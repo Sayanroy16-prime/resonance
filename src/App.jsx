@@ -427,6 +427,7 @@ export function App() {
                 audioEngine.setVolume(nextMute ? 0 : volume);
               }}
               tracks={tracks.filter((t) => likedTrackIds.includes(t.id))}
+              allTracks={tracks}
             />
           )}
 
