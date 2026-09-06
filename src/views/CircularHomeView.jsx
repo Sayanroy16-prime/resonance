@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react'
 import {
   Search, Play, Pause, Heart, Download, CheckCircle, Plus,
   Disc3, X, SkipForward, SkipBack, Shuffle, Repeat, Repeat1, Volume2, VolumeX,
-  ZoomIn, ZoomOut, Sparkles, Music, Flame, RotateCw
+  ZoomIn, ZoomOut, Sparkles, Music, Flame, RotateCw, RotateCcw, Trash2
 } from 'lucide-react';
 import { MOCK_TRACKS } from '../data/mockTracks';
 
@@ -125,20 +125,84 @@ export const CircularHomeView = ({
   tracks = MOCK_TRACKS,
   allTracks = MOCK_TRACKS,
 }) => {
-  const [selectedGenre, setSelectedGenre] = useState('all');
-  const [searchQuery, setSearchQuery]     = useState('');
-  const [searchOpen, setSearchOpen]       = useState(false);
-  const [vinylAngle, setVinylAngle]       = useState(0);
-  const [orbitAngle, setOrbitAngle]       = useState(0);
-  const [wavePhase, setWavePhase]         = useState(0);
-  const [deckZoom, setDeckZoom]           = useState(1.0);
+  const [selectedGenre, setSelectedGenre]         = useState('all');
+  const [searchQuery, setSearchQuery]             = useState('');
+  const [searchOpen, setSearchOpen]               = useState(false);
+  const [vinylAngle, setVinylAngle]               = useState(0);
+  const [orbitAngle, setOrbitAngle]               = useState(0);
+  const [wavePhase, setWavePhase]                 = useState(0);
+  const [deckZoom, setDeckZoom]                   = useState(1.0);
   const [isOrbitAutoMoving, setIsOrbitAutoMoving] = useState(true);
+
+  // Tracks explicitly removed from the spinning wheel
+  const [removedTrackIds, setRemovedTrackIds]     = useState(() => new Set());
+  const [lastRemovedTrack, setLastRemovedTrack]   = useState(null);
+  const [toastMessage, setToastMessage]           = useState('');
 
   const inputRef    = useRef(null);
   const rafRef      = useRef(null);
   const lastTimeRef = useRef(null);
 
   const activeGenre = GENRE_PALETTES[selectedGenre] || GENRE_PALETTES.all;
+
+  // Auto-dismiss toast
+  useEffect(() => {
+    if (!toastMessage) return;
+    const timer = setTimeout(() => setToastMessage(''), 4500);
+    return () => clearTimeout(timer);
+  }, [toastMessage]);
+
+  // Remove track from spinning wheel handler
+  const handleRemoveTrackFromWheel = useCallback((e, track) => {
+    if (e) {
+      e.stopPropagation();
+      e.preventDefault();
+    }
+    if (!track) return;
+
+    setRemovedTrackIds(prev => {
+      const next = new Set(prev);
+      next.add(track.id);
+      return next;
+    });
+    setLastRemovedTrack(track);
+    setToastMessage(`Removed "${track.title}" from spinning wheel`);
+
+    // If it's a liked track, also remove it from liked list
+    if (likedTrackIds.includes(track.id)) {
+      onToggleLikeTrack?.(track.id);
+    }
+
+    // If currently playing, advance to next track
+    if (currentTrack?.id === track.id) {
+      onSkipNext?.();
+    }
+  }, [likedTrackIds, onToggleLikeTrack, currentTrack, onSkipNext]);
+
+  // Undo removal of last track
+  const handleUndoRemove = useCallback(() => {
+    if (!lastRemovedTrack) return;
+    setRemovedTrackIds(prev => {
+      const next = new Set(prev);
+      next.delete(lastRemovedTrack.id);
+      return next;
+    });
+
+    if (!likedTrackIds.includes(lastRemovedTrack.id)) {
+      onToggleLikeTrack?.(lastRemovedTrack.id);
+    }
+
+    setToastMessage(`Restored "${lastRemovedTrack.title}" to wheel`);
+    setLastRemovedTrack(null);
+  }, [lastRemovedTrack, likedTrackIds, onToggleLikeTrack]);
+
+  // Restore all removed songs
+  const handleRestoreAllRemoved = useCallback(() => {
+    const count = removedTrackIds.size;
+    setRemovedTrackIds(new Set());
+    setLastRemovedTrack(null);
+    setToastMessage(`Restored all ${count} song${count !== 1 ? 's' : ''} to wheel`);
+  }, [removedTrackIds]);
 
   // Orbit rotation and soundwave phase animation loop
   useEffect(() => {
@@ -183,22 +247,24 @@ export const CircularHomeView = ({
     setSearchQuery('');
   }, []);
 
-  // Filter tracks based on genre and liked status
+  // Filter tracks based on genre, search, and removed status
   const displayedTracks = useMemo(() => {
     const sourceList = selectedGenre === 'all' 
       ? (tracks.length > 0 ? tracks : allTracks)
       : allTracks.filter(activeGenre.filterFn);
 
+    const available = sourceList.filter(t => !removedTrackIds.has(t.id));
+
     if (searchQuery.trim()) {
       const q = searchQuery.toLowerCase();
-      return sourceList.filter(t =>
+      return available.filter(t =>
         t.title.toLowerCase().includes(q) ||
         (t.artist_name || t.artist || '').toLowerCase().includes(q) ||
         (t.genre || '').toLowerCase().includes(q)
       );
     }
-    return sourceList;
-  }, [tracks, allTracks, selectedGenre, activeGenre, searchQuery]);
+    return available;
+  }, [tracks, allTracks, selectedGenre, activeGenre, searchQuery, removedTrackIds]);
 
   const totalSize = (ORBIT_R + ALBUM_D) * 2 + 24;
   const cx = totalSize / 2;
@@ -309,7 +375,7 @@ export const CircularHomeView = ({
 
       <div className="relative z-10 flex flex-col items-center gap-2 max-w-full px-2">
 
-        {/* ── TOP GENRE FILTER SELECTOR ── */}
+        {/* ── TOP GENRE FILTER SELECTOR + WHEEL ACTIONS ── */}
         <div className="flex items-center gap-1.5 p-1 rounded-2xl bg-black/60 backdrop-blur-xl border border-white/10 shadow-2xl z-40 transition-all duration-300">
           {Object.values(GENRE_PALETTES).map((genre) => {
             const isSel = selectedGenre === genre.id;
@@ -351,6 +417,18 @@ export const CircularHomeView = ({
             <RotateCw className={`w-3 h-3 ${isOrbitAutoMoving ? 'animate-spin text-[#00E676]' : 'text-gray-400'}`} style={{ animationDuration: '8s' }} />
             <span className="text-[10px] hidden sm:inline">{isOrbitAutoMoving ? 'Orbiting' : 'Paused'}</span>
           </button>
+
+          {/* Restore Removed Tracks button if any removed */}
+          {removedTrackIds.size > 0 && (
+            <button
+              onClick={handleRestoreAllRemoved}
+              className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-[11px] font-semibold text-amber-300 hover:text-amber-200 bg-amber-500/15 hover:bg-amber-500/25 border border-amber-500/30 transition cursor-pointer"
+              title="Restore all removed tracks back to the spinning wheel"
+            >
+              <RotateCcw className="w-3 h-3" />
+              <span>Restore ({removedTrackIds.size})</span>
+            </button>
+          )}
         </div>
 
         {/* ── MAIN INTERACTIVE ROW: LEFT LIST + BIG MOVING CIRCLE + RIGHT PLAYER ── */}
@@ -374,17 +452,25 @@ export const CircularHomeView = ({
             <div className="space-y-0.5 max-h-[500px] overflow-y-auto pr-0.5 scrollbar-thin">
               {displayedTracks.length === 0 ? (
                 <div className="text-center p-4 rounded-xl bg-white/5 border border-white/5">
-                  <p className="text-[11px] font-bold text-gray-300">No songs match</p>
-                  <p className="text-[9px] text-gray-500 mt-1">Try another genre or search.</p>
+                  <p className="text-[11px] font-bold text-gray-300">Wheel is empty</p>
+                  <p className="text-[9px] text-gray-500 mt-1">
+                    {removedTrackIds.size > 0 ? (
+                      <button onClick={handleRestoreAllRemoved} className="text-[#00E676] underline font-bold cursor-pointer">
+                        Restore removed songs
+                      </button>
+                    ) : (
+                      'Try another genre or search.'
+                    )}
+                  </p>
                 </div>
               ) : (
                 displayedTracks.map((track, idx) => {
                   const active = currentTrack?.id === track.id;
                   return (
-                    <button
+                    <div
                       key={track.id}
                       onClick={() => onPlayTrack(track)}
-                      className="group flex items-center gap-2.5 w-full px-2.5 py-2 rounded-xl text-left transition-all duration-300 cursor-pointer"
+                      className="group flex items-center gap-2 w-full px-2.5 py-2 rounded-xl text-left transition-all duration-300 cursor-pointer relative"
                       style={{
                         background: active ? `${activeGenre.primary}1A` : 'transparent',
                         border: `1px solid ${active ? `${activeGenre.primary}40` : 'transparent'}`,
@@ -393,7 +479,7 @@ export const CircularHomeView = ({
                       onMouseLeave={e => { if (!active) e.currentTarget.style.background = 'transparent'; }}
                     >
                       <span
-                        className="text-[10px] w-4 font-bold flex-shrink-0 transition-colors"
+                        className="text-[10px] w-3.5 font-bold flex-shrink-0 transition-colors"
                         style={{ color: active ? activeGenre.primary : '#6b7280' }}
                       >
                         {active && isPlaying ? (
@@ -431,7 +517,17 @@ export const CircularHomeView = ({
                           {track.artist_name || track.artist}
                         </p>
                       </div>
-                    </button>
+
+                      {/* Remove from wheel button on list hover */}
+                      <button
+                        onClick={(e) => handleRemoveTrackFromWheel(e, track)}
+                        className="opacity-0 group-hover:opacity-100 p-1 rounded-md text-gray-500 hover:text-red-400 hover:bg-red-500/15 transition flex-shrink-0 cursor-pointer"
+                        title={`Remove "${track.title}" from spinning wheel`}
+                        aria-label={`Remove ${track.title} from spinning wheel`}
+                      >
+                        <X className="w-3 h-3 stroke-[2.5]" />
+                      </button>
+                    </div>
                   );
                 })
               )}
@@ -641,9 +737,18 @@ export const CircularHomeView = ({
                 >
                   <Heart className="w-7 h-7 fill-current animate-pulse" style={{ color: activeGenre.primary }} />
                 </div>
-                <p className="text-xs font-extrabold text-white">No Tracks in {activeGenre.label}</p>
+                <p className="text-xs font-extrabold text-white">No Tracks on Wheel</p>
                 <p className="text-[10px] text-gray-400 max-w-[200px] mt-1">
-                  Switch genre tabs above or tap ❤️ to add songs to orbit.
+                  {removedTrackIds.size > 0 ? (
+                    <button
+                      onClick={handleRestoreAllRemoved}
+                      className="pointer-events-auto text-[#00E676] hover:underline font-bold mt-1 inline-block cursor-pointer"
+                    >
+                      Restore {removedTrackIds.size} removed track{removedTrackIds.size !== 1 ? 's' : ''}
+                    </button>
+                  ) : (
+                    'Switch genre tabs above or tap ❤️ to add songs to orbit.'
+                  )}
                 </p>
               </div>
             )}
@@ -660,10 +765,9 @@ export const CircularHomeView = ({
               const artist = track.artist_name || track.artist;
 
               return (
-                <button
+                <div
                   key={track.id}
-                  onClick={() => onPlayTrack(track)}
-                  className="absolute group focus:outline-none cursor-pointer"
+                  className="absolute group focus:outline-none"
                   style={{
                     left,
                     top,
@@ -673,58 +777,74 @@ export const CircularHomeView = ({
                     transform: active ? 'scale(1.28)' : 'scale(1)',
                     transition: 'transform 0.35s cubic-bezier(0.16,1,0.3,1)',
                   }}
-                  title={`${track.title} — ${artist}`}
                 >
-                  {active && (
-                    <>
-                      <div
-                        className="absolute -inset-2 rounded-full border-2 animate-ping opacity-40"
-                        style={{ borderColor: activeGenre.primary }}
-                      />
-                      <div
-                        className="absolute -inset-1 rounded-full"
-                        style={{ border: `2px solid ${activeGenre.primary}` }}
-                      />
-                    </>
-                  )}
-                  <img
-                    src={cover}
-                    alt={track.title}
-                    className="w-full h-full rounded-full object-cover shadow-2xl"
-                    style={{
-                      border: active
-                        ? `3px solid ${activeGenre.primary}`
-                        : '2px solid rgba(255,255,255,0.14)',
-                      boxShadow: active
-                        ? `0 0 35px ${activeGenre.glow}, 0 8px 24px rgba(0,0,0,0.9)`
-                        : '0 4px 16px rgba(0,0,0,0.7)',
-                      transition: 'all 0.3s ease',
-                    }}
-                  />
-
-                  {/* Hover tooltip */}
+                  {/* Clickable Album Area */}
                   <div
-                    className="absolute pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity z-50"
-                    style={{
-                      left: '50%',
-                      bottom: '112%',
-                      transform: 'translateX(-50%)',
-                      whiteSpace: 'nowrap',
-                    }}
+                    onClick={() => onPlayTrack(track)}
+                    className="w-full h-full relative cursor-pointer"
+                    title={`${track.title} — ${artist}`}
                   >
-                    <div className="bg-black/90 backdrop-blur-md border border-white/10 rounded-xl px-2.5 py-1.5 shadow-2xl">
-                      <p className="text-[10px] font-extrabold text-white">{track.title}</p>
-                      <p className="text-[9px] text-gray-400">{artist}</p>
+                    {active && (
+                      <>
+                        <div
+                          className="absolute -inset-2 rounded-full border-2 animate-ping opacity-40 pointer-events-none"
+                          style={{ borderColor: activeGenre.primary }}
+                        />
+                        <div
+                          className="absolute -inset-1 rounded-full pointer-events-none"
+                          style={{ border: `2px solid ${activeGenre.primary}` }}
+                        />
+                      </>
+                    )}
+                    <img
+                      src={cover}
+                      alt={track.title}
+                      className="w-full h-full rounded-full object-cover shadow-2xl"
+                      style={{
+                        border: active
+                          ? `3px solid ${activeGenre.primary}`
+                          : '2px solid rgba(255,255,255,0.14)',
+                        boxShadow: active
+                          ? `0 0 35px ${activeGenre.glow}, 0 8px 24px rgba(0,0,0,0.9)`
+                          : '0 4px 16px rgba(0,0,0,0.7)',
+                        transition: 'all 0.3s ease',
+                      }}
+                    />
+
+                    {/* Hover tooltip */}
+                    <div
+                      className="absolute pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity z-50"
+                      style={{
+                        left: '50%',
+                        bottom: '112%',
+                        transform: 'translateX(-50%)',
+                        whiteSpace: 'nowrap',
+                      }}
+                    >
+                      <div className="bg-black/90 backdrop-blur-md border border-white/10 rounded-xl px-2.5 py-1.5 shadow-2xl">
+                        <p className="text-[10px] font-extrabold text-white">{track.title}</p>
+                        <p className="text-[9px] text-gray-400">{artist}</p>
+                      </div>
                     </div>
+
+                    {/* Play icon hover overlay */}
+                    {!active && (
+                      <div className="absolute inset-0 rounded-full bg-black/60 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                        <Play className="w-5 h-5 text-white fill-white" />
+                      </div>
+                    )}
                   </div>
 
-                  {/* Play icon hover overlay */}
-                  {!active && (
-                    <div className="absolute inset-0 rounded-full bg-black/60 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
-                      <Play className="w-5 h-5 text-white fill-white" />
-                    </div>
-                  )}
-                </button>
+                  {/* ── OPTION TO REMOVE SONG FROM THE SPINNING WHEEL ── */}
+                  <button
+                    onClick={(e) => handleRemoveTrackFromWheel(e, track)}
+                    className="absolute -top-1.5 -right-1.5 w-6 h-6 rounded-full bg-red-600/90 hover:bg-red-500 text-white shadow-xl flex items-center justify-center transition-all duration-200 opacity-0 group-hover:opacity-100 hover:scale-115 z-40 border border-white/25 cursor-pointer"
+                    title={`Remove "${track.title}" from spinning wheel`}
+                    aria-label={`Remove ${track.title} from spinning wheel`}
+                  >
+                    <X className="w-3.5 h-3.5 stroke-[2.5]" />
+                  </button>
+                </div>
               );
             })}
 
@@ -783,7 +903,7 @@ export const CircularHomeView = ({
                   </div>
                   <button
                     onClick={closeSearch}
-                    className="text-gray-500 hover:text-gray-300 transition mt-0.5"
+                    className="text-gray-500 hover:text-gray-300 transition mt-0.5 cursor-pointer"
                   >
                     <X style={{ width: 12, height: 12 }} />
                   </button>
@@ -847,7 +967,7 @@ export const CircularHomeView = ({
                     <p className="text-[9px] font-extrabold uppercase tracking-widest text-gray-400">
                       {displayedTracks.length} result{displayedTracks.length !== 1 ? 's' : ''}
                     </p>
-                    <button onClick={closeSearch}>
+                    <button onClick={closeSearch} className="cursor-pointer">
                       <X style={{ width: 13, height: 13, color: '#6b7280' }} />
                     </button>
                   </div>
@@ -859,7 +979,7 @@ export const CircularHomeView = ({
                         <button
                           key={track.id}
                           onClick={() => { onPlayTrack(track); closeSearch(); }}
-                          className="flex items-center gap-3 w-full px-4 py-2.5 transition text-left"
+                          className="flex items-center gap-3 w-full px-4 py-2.5 transition text-left cursor-pointer"
                           onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,0.05)'}
                           onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
                         >
@@ -888,7 +1008,7 @@ export const CircularHomeView = ({
               </div>
             )}
 
-            {/* Deck Zoom & Motion Quick Controls */}
+            {/* Deck Zoom Quick Controls */}
             <div
               className="absolute -bottom-8 left-1/2 -translate-x-1/2 z-40 flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-[#12141a]/95 border border-white/15 backdrop-blur-xl shadow-2xl"
               onClick={e => e.stopPropagation()}
@@ -993,6 +1113,7 @@ export const CircularHomeView = ({
                     )}
 
                     <div className="flex items-center gap-2 mt-3">
+                      {/* Heart / Like button */}
                       <button
                         onClick={() => onToggleLikeTrack(currentTrack.id)}
                         className="p-2 rounded-xl transition-all cursor-pointer"
@@ -1000,6 +1121,7 @@ export const CircularHomeView = ({
                           background: isLiked ? 'rgba(244,63,94,0.15)' : 'rgba(255,255,255,0.05)',
                           border: `1px solid ${isLiked ? 'rgba(244,63,94,0.35)' : 'transparent'}`,
                         }}
+                        title={isLiked ? "Unlike song" : "Like song (add to wheel)"}
                       >
                         <Heart
                           style={{
@@ -1009,6 +1131,8 @@ export const CircularHomeView = ({
                           }}
                         />
                       </button>
+
+                      {/* Download button */}
                       <button
                         onClick={() => onDownloadTrack(currentTrack)}
                         className="p-2 rounded-xl transition-all cursor-pointer"
@@ -1016,6 +1140,7 @@ export const CircularHomeView = ({
                           background: isDownloaded ? `${activeGenre.primary}1A` : 'rgba(255,255,255,0.05)',
                           border: `1px solid ${isDownloaded ? `${activeGenre.primary}40` : 'transparent'}`,
                         }}
+                        title={isDownloaded ? "Downloaded" : "Download song"}
                       >
                         {isDownloaded ? (
                           <CheckCircle style={{ width: 14, height: 14, color: activeGenre.primary }} />
@@ -1023,13 +1148,28 @@ export const CircularHomeView = ({
                           <Download style={{ width: 14, height: 14, color: '#9ca3af' }} />
                         )}
                       </button>
+
+                      {/* Add to Queue button */}
                       <button
                         onClick={() => onAddToQueue(currentTrack)}
                         className="p-2 rounded-xl transition-all hover:bg-white/10 cursor-pointer"
                         style={{ background: 'rgba(255,255,255,0.05)' }}
+                        title="Add to queue"
                       >
                         <Plus style={{ width: 14, height: 14, color: '#9ca3af' }} />
                       </button>
+
+                      {/* Remove current track from spinning wheel button */}
+                      <button
+                        onClick={(e) => handleRemoveTrackFromWheel(e, currentTrack)}
+                        className="p-2 rounded-xl transition-all hover:bg-red-500/20 text-gray-400 hover:text-red-400 cursor-pointer"
+                        style={{ background: 'rgba(255,255,255,0.05)' }}
+                        title={`Remove "${currentTrack.title}" from spinning wheel`}
+                      >
+                        <Trash2 style={{ width: 14, height: 14 }} />
+                      </button>
+
+                      {/* Play / Pause button */}
                       <button
                         onClick={onTogglePlay}
                         className="ml-auto w-10 h-10 rounded-full flex items-center justify-center transition-all hover:scale-105 cursor-pointer"
@@ -1185,6 +1325,27 @@ export const CircularHomeView = ({
           </div>
         </div>
       </div>
+
+      {/* ── TOAST NOTIFICATION WITH UNDO OPTION ── */}
+      {toastMessage && (
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 flex items-center gap-3 px-4 py-2.5 rounded-2xl bg-black/90 border border-white/15 backdrop-blur-xl shadow-2xl text-xs text-white animate-fade-in">
+          <span>{toastMessage}</span>
+          {lastRemovedTrack && (
+            <button
+              onClick={handleUndoRemove}
+              className="px-2.5 py-1 rounded-lg bg-white/15 hover:bg-white/25 font-bold text-[#00E676] transition cursor-pointer"
+            >
+              Undo
+            </button>
+          )}
+          <button
+            onClick={() => setToastMessage('')}
+            className="text-gray-400 hover:text-white p-0.5 cursor-pointer"
+          >
+            <X className="w-3.5 h-3.5" />
+          </button>
+        </div>
+      )}
     </div>
   );
 };
