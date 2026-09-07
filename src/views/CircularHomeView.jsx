@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react'
 import {
   Search, Play, Pause, Heart, Download, CheckCircle, Plus,
   Disc3, X, SkipForward, SkipBack, Shuffle, Repeat, Repeat1, Volume2, VolumeX,
-  ZoomIn, ZoomOut, Sparkles, Music, Flame, RotateCw, RotateCcw, Trash2
+  ZoomIn, ZoomOut, Sparkles, Music, Flame, RotateCw, RotateCcw, Trash2, Compass
 } from 'lucide-react';
 import { MOCK_TRACKS } from '../data/mockTracks';
 
@@ -84,10 +84,26 @@ const GENRE_PALETTES = {
     glow: 'rgba(255, 61, 0, 0.48)',
     bgGlow: 'rgba(255, 61, 0, 0.18)',
     bgGradient: 'radial-gradient(ellipse at 50% 50%, #1f0d0a 0%, #090A0C 75%)',
-    description: 'Heavy electric riffs & Sufi power rock',
+    description: 'Heavy electric riffs & rock legends',
     filterFn: (t) => {
       const s = `${t.title} ${t.artist_name || t.artist} ${t.genre || ''}`.toLowerCase();
-      return /rock|metal|electric|naadan|bulleya|aadat|toh phir aao|rishta|guitar/i.test(s);
+      return /rock|metal|electric|queen|nirvana|zeppelin|bon jovi|journey|oasis|springsteen|skynyrd|pink floyd|killers|coldplay|u2|guns|metallica/i.test(s);
+    },
+  },
+  country: {
+    id: 'country',
+    label: 'Country',
+    icon: Compass,
+    primary: '#D97706',
+    secondary: '#B45309',
+    accent: '#FDE68A',
+    glow: 'rgba(217, 119, 6, 0.48)',
+    bgGlow: 'rgba(217, 119, 6, 0.18)',
+    bgGradient: 'radial-gradient(ellipse at 50% 50%, #1c1308 0%, #090A0C 75%)',
+    description: 'Western folk, outlaw ballads & acoustic roots',
+    filterFn: (t) => {
+      const s = `${t.title} ${t.artist_name || t.artist} ${t.genre || ''}`.toLowerCase();
+      return /country|western|folk|cash|willie|dolly|denver|merle|marty|gambler|wagon|cowboy|strait|autry|williams/i.test(s);
     },
   },
 };
@@ -247,24 +263,29 @@ export const CircularHomeView = ({
     setSearchQuery('');
   }, []);
 
-  // Filter tracks based on genre, search, and removed status
+  // Filter tracks based on genre and removed status:
+  // STRICT RULE: Only display tracks that the user has added to their liked songs (tracks prop)!
+  // Never dump un-added library tracks onto the homepage spinning wheel.
   const displayedTracks = useMemo(() => {
-    const sourceList = selectedGenre === 'all' 
-      ? (tracks.length > 0 ? tracks : allTracks)
-      : allTracks.filter(activeGenre.filterFn);
+    // Only tracks the user has liked / added, minus any removed from wheel
+    const userAdded = tracks.filter(t => !removedTrackIds.has(t.id));
 
-    const available = sourceList.filter(t => !removedTrackIds.has(t.id));
-
-    if (searchQuery.trim()) {
-      const q = searchQuery.toLowerCase();
-      return available.filter(t =>
-        t.title.toLowerCase().includes(q) ||
-        (t.artist_name || t.artist || '').toLowerCase().includes(q) ||
-        (t.genre || '').toLowerCase().includes(q)
-      );
+    if (selectedGenre === 'all') {
+      return userAdded;
     }
-    return available;
-  }, [tracks, allTracks, selectedGenre, activeGenre, searchQuery, removedTrackIds]);
+    return userAdded.filter(activeGenre.filterFn);
+  }, [tracks, selectedGenre, activeGenre, removedTrackIds]);
+
+  // Center turntable search results across all available catalog tracks
+  const searchResults = useMemo(() => {
+    if (!searchQuery.trim()) return [];
+    const q = searchQuery.toLowerCase();
+    return allTracks.filter(t =>
+      t.title.toLowerCase().includes(q) ||
+      (t.artist_name || t.artist || '').toLowerCase().includes(q) ||
+      (t.genre || '').toLowerCase().includes(q)
+    ).slice(0, 10);
+  }, [allTracks, searchQuery]);
 
   const totalSize = (ORBIT_R + ALBUM_D) * 2 + 24;
   const cx = totalSize / 2;
@@ -953,7 +974,7 @@ export const CircularHomeView = ({
             {searchOpen && searchQuery && (
               <div
                 className="absolute z-50"
-                style={{ left: cx - 155, top: cy + CENTER_D / 2 + 14, width: 310 }}
+                style={{ left: cx - 165, top: cy + CENTER_D / 2 + 14, width: 330 }}
               >
                 <div
                   className="backdrop-blur-2xl rounded-2xl overflow-hidden shadow-2xl"
@@ -965,43 +986,56 @@ export const CircularHomeView = ({
                 >
                   <div className="px-4 py-2.5 border-b border-white/5 flex items-center justify-between">
                     <p className="text-[9px] font-extrabold uppercase tracking-widest text-gray-400">
-                      {displayedTracks.length} result{displayedTracks.length !== 1 ? 's' : ''}
+                      {searchResults.length} result{searchResults.length !== 1 ? 's' : ''} found
                     </p>
                     <button onClick={closeSearch} className="cursor-pointer">
                       <X style={{ width: 13, height: 13, color: '#6b7280' }} />
                     </button>
                   </div>
-                  {displayedTracks.length === 0 ? (
+                  {searchResults.length === 0 ? (
                     <p className="text-xs text-gray-500 p-4 text-center">No tracks found.</p>
                   ) : (
-                    <div className="max-h-44 overflow-y-auto">
-                      {displayedTracks.map(track => (
-                        <button
-                          key={track.id}
-                          onClick={() => { onPlayTrack(track); closeSearch(); }}
-                          className="flex items-center gap-3 w-full px-4 py-2.5 transition text-left cursor-pointer"
-                          onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,0.05)'}
-                          onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
-                        >
-                          <img
-                            src={track.coverUrl || track.cover_url}
-                            alt=""
-                            className="w-8 h-8 rounded-lg object-cover flex-shrink-0"
-                          />
-                          <div className="flex-1 min-w-0">
-                            <p className="text-xs font-bold text-white truncate">{track.title}</p>
-                            <p className="text-[10px] text-gray-400 truncate">
-                              {track.artist} · {track.genre}
-                            </p>
+                    <div className="max-h-56 overflow-y-auto">
+                      {searchResults.map(track => {
+                        const isTrackLiked = likedTrackIds.includes(track.id);
+                        return (
+                          <div
+                            key={track.id}
+                            className="flex items-center gap-2.5 w-full px-3.5 py-2 transition hover:bg-white/5 group border-b border-white/5 last:border-0"
+                          >
+                            <button
+                              onClick={() => { onPlayTrack(track); closeSearch(); }}
+                              className="flex items-center gap-2.5 flex-1 min-w-0 text-left cursor-pointer"
+                            >
+                              <img
+                                src={track.coverUrl || track.cover_url}
+                                alt=""
+                                className="w-8 h-8 rounded-lg object-cover flex-shrink-0"
+                              />
+                              <div className="flex-1 min-w-0">
+                                <p className="text-xs font-bold text-white truncate group-hover:text-emerald-400 transition-colors">{track.title}</p>
+                                <p className="text-[10px] text-gray-400 truncate">
+                                  {track.artist || track.artist_name} · {track.genre}
+                                </p>
+                              </div>
+                            </button>
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                onToggleLikeTrack?.(track.id);
+                              }}
+                              className={`p-1.5 rounded-full transition cursor-pointer ${
+                                isTrackLiked 
+                                  ? 'text-red-500 hover:text-red-400' 
+                                  : 'text-gray-400 hover:text-white hover:bg-white/10'
+                              }`}
+                              title={isTrackLiked ? 'Remove from spinning wheel' : 'Add to spinning wheel'}
+                            >
+                              <Heart className={`w-3.5 h-3.5 ${isTrackLiked ? 'fill-current' : ''}`} />
+                            </button>
                           </div>
-                          {currentTrack?.id === track.id && (
-                            <div
-                              className="w-2 h-2 rounded-full flex-shrink-0"
-                              style={{ background: activeGenre.primary }}
-                            />
-                          )}
-                        </button>
-                      ))}
+                        );
+                      })}
                     </div>
                   )}
                 </div>

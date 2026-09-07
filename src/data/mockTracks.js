@@ -1,4 +1,6 @@
-export const MOCK_TRACKS = [
+import { LEGENDARY_100_TRACKS, LEGENDARY_100_GUITAR_TRACKS } from './legendaryTracks';
+
+const RAW_MOCK_TRACKS = [
   {
     id: "track-1",
     title: "Metavoid Symphony",
@@ -647,10 +649,15 @@ export const MOCK_TRACKS = [
   }
 ];
 
+export const MOCK_TRACKS = [...RAW_MOCK_TRACKS, ...LEGENDARY_100_TRACKS];
+
 export const GENRES_LIST = [
+  { id: "rock", name: "Classic Rock", color: "from-red-600 to-amber-900", bg: "#FF3D00" },
+  { id: "country", name: "Country & Folk", color: "from-amber-700 to-yellow-950", bg: "#D97706" },
+  { id: "pop", name: "Pop Legends", color: "from-pink-600 to-purple-900", bg: "#EC4899" },
   { id: "techno", name: "Industrial Techno", color: "from-emerald-600 to-black", bg: "#00E676" },
-  { id: "synthwave", name: "Synthwave", color: "from-pink-600 to-purple-900", bg: "#EC4899" },
-  { id: "lofi", name: "Lofi Beats", color: "from-amber-600 to-orange-900", bg: "#F59E0B" },
+  { id: "synthwave", name: "Synthwave", color: "from-pink-600 to-purple-900", bg: "#A855F7" },
+  { id: "lofi", name: "Lofi & Ballads", color: "from-amber-600 to-orange-900", bg: "#F59E0B" },
   { id: "cyberpunk", name: "Cyberpunk", color: "from-cyan-500 to-blue-900", bg: "#06B6D4" },
   { id: "electronic", name: "Electronic", color: "from-emerald-500 to-teal-900", bg: "#10B981" },
   { id: "ambient", name: "Ambient", color: "from-indigo-600 to-violet-950", bg: "#6366F1" }
@@ -720,7 +727,7 @@ export const MOCK_PLAYLISTS = [
 ];
 
 // ─── Guitar Tracks ───────────────────────────────────────────────────────────
-export const GUITAR_TRACKS = [
+const RAW_GUITAR_TRACKS = [
   {
     id: "track-g1",
     title: "Cascade Riff",
@@ -1338,6 +1345,8 @@ export const GUITAR_TRACKS = [
     difficulty: "Intermediate"
   }
 ];
+
+export const GUITAR_TRACKS = [...RAW_GUITAR_TRACKS, ...LEGENDARY_100_GUITAR_TRACKS];
 
 export const GUITAR_CATEGORIES = [
   {
